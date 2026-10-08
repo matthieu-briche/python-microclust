@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # microclust : regrouper les actifs par mécanique de marché, pas par rendements
 
 ## L'idée en une phrase
@@ -115,3 +116,7 @@ scripts/
   collect_binance_depth.py  collecteur L2 temps réel
 results/                    sorties (CSV + figure)
 ```
+=======
+# python-microclust
+Research prototype: the measurement pipeline is validated on synthetic data, but the core hypothesis (H3) has not yet been tested on real markets.
+>>>>>>> bbdce3e244e54e0388f261afde06aa7068ffcea5
