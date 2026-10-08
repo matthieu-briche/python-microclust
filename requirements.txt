@@ -1,0 +1,8 @@
+numpy
+pandas
+scipy
+scikit-learn
+matplotlib
+pyarrow
+numba  # optionnel, accélère l'estimation Hawkes
+websockets  # seulement pour le collecteur L2

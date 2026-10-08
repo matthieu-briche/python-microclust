@@ -1,0 +1,9 @@
+,0
+ari_micro_vs_truth,0.8354629447611559
+n_clusters_micro,5.0
+ari_returns_vs_truth,0.03821032005225343
+mantel_rho_micro,0.6353311153035943
+mantel_p_micro,0.0004997501249375312
+mantel_rho_returns,-0.029973678127408566
+mantel_p_returns,0.7616191904047976
+split_stability_ari,1.0
