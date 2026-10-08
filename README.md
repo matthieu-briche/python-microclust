@@ -1,122 +1,88 @@
-<<<<<<< HEAD
-# microclust : regrouper les actifs par mécanique de marché, pas par rendements
-
-## L'idée en une phrase
-
-Deux actifs peuvent être **décorrélés en rendements** mais **fonctionner de la même façon** au niveau microstructure : même mémoire des ordres, même impact, même régime de tick, même endogénéité. Si c'est le cas, une stratégie intraday calibrée sur l'un devrait se **transférer** à l'autre. Le clustering classique sur les corrélations (López de Prado, *ML for Asset Managers*, ch. 4) ne peut pas voir cette similarité.
-
-## Ce qui est (probablement) neuf
-
-| Existant | En quoi c'est différent |
-|---|---|
-| Clustering de corrélations (*MLAM*, ch. 4) | On regroupe sur ce qui se passe *dans* le carnet, pas sur les co-mouvements de prix |
-| Commonality in liquidity (Velu et al., §3.4) | Mesure si la liquidité *bouge ensemble dans le temps*. Ici on mesure si la *mécanique est la même*, même sans co-mouvement |
-| Faits stylisés universels (Bouchaud et al.) | Bouchaud insiste sur l'universalité. Ce projet cherche les **écarts systématiques** à cette universalité et teste s'ils sont exploitables |
-| ClusterLOB (arXiv 2504.20349) | Regroupe des *ordres* dans un carnet, pas des *actifs* |
-
-Je n'ai pas trouvé de travail publié qui (1) construise une signature sans dimension par actif, (2) applique l'ONC dessus et (3) **valide les clusters par la transférabilité d'une stratégie**. C'est l'étape (3) qui rend le projet utile, et pas seulement descriptif. À revérifier sur SSRN et arXiv q-fin avant d'investir des mois.
-
-## Hypothèses testables (à écrire AVANT de regarder les données réelles)
-
-- **H1 (structure)** : l'ONC sur les signatures trouve ≥ 2 clusters avec une qualité (t-stat des silhouettes) supérieure à celle obtenue sur des signatures permutées.
-- **H2 (différence)** : la partition microstructure diffère de la partition par rendements, avec un ARI < 0,3.
-- **H3 (utilité)** : la perte de transfert d'une stratégie est corrélée à la distance de microstructure (Mantel, p < 0,05) **plus fortement** qu'à la distance de corrélation.
-- **H4 (stabilité)** : les clusters sont stables d'une période à l'autre (ARI entre périodes > 0,5).
-
-Si H3 échoue sur données réelles, l'idée est réfutée. C'est un résultat valable, et ça ne coûte que quelques jours.
-
-## La signature (toutes les grandeurs sont sans dimension)
-
-| Feature | Définition | Référence | Ce qu'elle capte |
-|---|---|---|---|
-| `gamma` | exposant de C(ℓ) ~ ℓ^-γ des signes d'ordres (variance agrégée) | Bouchaud, ch. 10 | découpage des métaordres, mémoire longue |
-| `c1` | autocorrélation des signes au retard 1 | ch. 10 | « herding » court terme |
-| `log_spread_ticks` | log(spread effectif / tick) | §4.8 | grand tick ↔ petit tick |
-| `p_move` | fraction des transactions qui déplacent le mid | §4.8, Cartea §3.4 | contrainte de la grille de prix |
-| `impact1` | R(1) / spread, avec R(ℓ) = E[ε_t (m_{t+ℓ} − m_t)] | ch. 11 | impact instantané |
-| `impact_persist` | R(100)/R(1), compressé dans (−1, 1) | ch. 13 (propagateur) | résilience du carnet |
-| `sigma_spread` | volatilité par transaction / spread | ch. 16 | équilibre volatilité/spread |
-| `vr50` | ratio de variance sur 50 transactions | ch. 2 | retour à la moyenne vs tendance intraday |
-| `hawkes_n` | ratio de branchement d'un Hawkes exponentiel (MLE) | ch. 9 | endogénéité de l'activité |
-| `cancel_to_trade`* | volume annulé / volume exécuté | Cartea §4.4 | activité HFT, « flickering liquidity » |
-
-\* La dernière feature demande le carnet L2, qu'il faut collecter soi-même (`scripts/collect_binance_depth.py`). Elle n'entre pas encore dans le clustering.
-
-Tout est calculé à partir des seuls **trades signés** (prix, quantité, côté de l'agresseur). Ces données sont gratuites et historiques sur Binance. Le mid est approché par `prix − signe × spread/2`.
-
-## Résultats de la démo synthétique
-
-`python scripts/run_demo.py` produit 32 actifs simulés en 4 familles connues, via des métaordres de Lillo-Mike-Farmer, un propagateur, une grille de tick et des arrivées Hawkes.
-
-| Test | Résultat |
-|---|---|
-| ONC retrouve les familles | ARI = 0,84 (5 clusters trouvés pour 4 vrais : la famille D est coupée en deux sur `impact_persist`) |
-| Partition rendements ≠ partition micro | ARI = 0,04 |
-| Mantel perte de transfert ~ distance micro | ρ = 0,64, p = 0,0005 |
-| Mantel perte de transfert ~ distance rendements | ρ = −0,03, p = 0,76 |
-| Perte de transfert moyenne intra- / inter-famille | 0,030 / 0,144 |
-| Stabilité 1re / 2e moitié | ARI = 1,00 |
-
-**Attention, ceci ne prouve rien sur le vrai marché.** Dans la simulation, la microstructure et les rendements sont indépendants par construction, et c'est la microstructure qui détermine la stratégie. La démo prouve seulement que **la chaîne de mesure fonctionne** : les estimateurs retrouvent les paramètres, l'ONC retrouve les blocs et le test de Mantel détecte la relation quand elle existe. C'est la même logique que le §4.5 de *MLAM*, où l'on valide l'ONC sur des blocs injectés.
-
-Leçon apprise en route : l'estimation directe de γ par ajustement de l'autocorrélation est trop bruitée sur 30 000 transactions (écart-type ≈ 0,25). Elle a été remplacée par la méthode de la variance agrégée, environ deux fois plus précise. Sur données réelles, vise **≥ 200 000 transactions par actif**.
-
-## Lancer sur données réelles
-
+microclust: clustering assets by market mechanics, not by returns
+Version française
+The idea in one sentence
+Two assets can be uncorrelated in returns yet work the same way at the microstructure level: same order-sign memory, same price impact, same tick regime, same endogeneity. If so, an intraday strategy calibrated on one should transfer to the other. Classic correlation-based clustering (López de Prado, Machine Learning for Asset Managers, ch. 4) cannot see this similarity.
+What is (probably) new
+Existing work	How this differs
+Correlation clustering (MLAM, ch. 4)	We cluster on what happens inside the order book, not on price co-movements
+Commonality in liquidity (Velu et al., §3.4)	Measures whether liquidity moves together over time. Here we measure whether the mechanics are the same, even without co-movement
+Universal stylized facts (Bouchaud et al.)	Bouchaud emphasizes universality. This project looks for systematic deviations from it and tests whether they are exploitable
+ClusterLOB (arXiv 2504.20349)	Clusters orders within one book, not assets
+I have not found published work that (1) builds a dimensionless signature per asset, (2) applies ONC clustering to it, and (3) validates the clusters by strategy transferability. Step (3) is what makes the project useful rather than merely descriptive. Worth re-checking SSRN and arXiv q-fin before investing months.
+Testable hypotheses (written BEFORE looking at real data)
+H1 (structure): ONC on the signatures finds ≥ 2 clusters with higher quality (t-stat of silhouettes) than on permuted signatures.
+H2 (difference): the microstructure partition differs from the returns partition (ARI < 0.3).
+H3 (usefulness): a strategy's transfer loss correlates with microstructure distance (Mantel, p < 0.05) more strongly than with correlation distance.
+H4 (stability): the geometry is stable across periods (correlation of distance matrices > 0.7). Partition ARI is reported too, but it is too noise-sensitive to serve as the criterion.
+If H3 fails on real data, the idea is refuted. That is a valid result, and it only costs a few days.
+The signature (all quantities are dimensionless)
+Feature	Definition	Reference	What it captures
+`gamma`	exponent of C(ℓ) ~ ℓ^-γ for order signs (aggregated variance)	Bouchaud, ch. 10	metaorder splitting, long memory
+`c1`	lag-1 autocorrelation of order signs	ch. 10	short-term herding
+`log_spread_ticks`	log(effective spread / tick)	§4.8	large-tick vs small-tick
+`p_move`	fraction of trades that move the mid	§4.8, Cartea §3.4	price-grid constraint
+`impact1`	R(1) / spread, with R(ℓ) = E[ε_t (m_{t+ℓ} − m_t)]	ch. 11	instantaneous impact
+`impact_persist`	R(100)/R(1), squashed into (−1, 1)	ch. 13 (propagator)	book resilience
+`sigma_spread`	per-trade volatility / spread	ch. 16	volatility/spread balance
+`vr50`	variance ratio over 50 trades	ch. 2	intraday mean reversion vs trend
+`hawkes_n`	branching ratio of an exponential Hawkes process (MLE)	ch. 9	endogeneity of activity
+`cancel_to_trade`*	cancelled volume / traded volume	Cartea §4.4	HFT activity, flickering liquidity
+* The last feature needs L2 book data, which you must collect yourself (`scripts/collect_binance_depth.py`). It is not yet part of the clustering.
+Everything is computed from signed trades only (price, quantity, aggressor side). This data is free and historical on Binance. The mid is approximated as `price − sign × spread/2`.
+Synthetic demo results
+`python scripts/run_demo.py` generates 32 simulated assets in 4 known families, using Lillo-Mike-Farmer metaorders, a propagator, a tick grid and Hawkes arrivals.
+Test	Result
+ONC recovers the families	ARI = 0.84 (5 clusters found for 4 true ones: family D splits on `impact_persist`)
+Returns partition ≠ micro partition	ARI = 0.04
+Mantel transfer loss ~ micro distance (out-of-sample)	ρ = 0.71, p = 0.0005
+Mantel transfer loss ~ returns distance	ρ = −0.02, p = 0.62
+Mean transfer loss within / across families	0.032 / 0.141
+Stability, 1st vs 2nd half	cluster ARI = 0.49, distance correlation = 0.95
+Caution: this proves nothing about real markets. In the simulation, microstructure and returns are independent by construction, and microstructure drives the strategy. The demo only shows that the measurement pipeline works: estimators recover the parameters, ONC recovers the blocks, and the Mantel test detects the relationship when it exists. Same logic as MLAM §4.5, which validates ONC on injected blocks.
+The transfer test is out-of-sample: signatures and calibration on the first half (by time), loss measured on the second. An earlier version used the same data for both, which was circular, since order-sign memory is both a feature and the engine of the test strategy.
+Stability is measured two ways. Partition ARI is fragile: one cluster merging with another makes it collapse. The correlation between the two periods' distance matrices is much more robust. In the demo, families are stable by construction, yet ARI drops to 0.49 while distances stay correlated at 0.95.
+Another lesson learned: estimating γ by directly fitting the autocorrelation is too noisy on 30,000 trades (std ≈ 0.25). It was replaced by the aggregated-variance method, about twice as precise. On real data, aim for ≥ 200,000 trades per asset.
+Running on real data
 ```bash
 pip install -r requirements.txt
-python scripts/run_demo.py                                      # 1 min, sans réseau
-python scripts/run_binance.py --start 2026-09-01 --days 1 --max-trades 300000   # test rapide
-python scripts/run_binance.py --start 2026-09-01 --days 5       # vraie première étude
+python scripts/run_demo.py                                  # ~1 min, no network
+python scripts/run_binance.py --start 2026-09-01 --days 1   # quick test
+python scripts/run_binance.py --start 2026-09-01 --days 7   # first real study
 ```
-
-Le script télécharge les aggTrades de 30 paires depuis data.binance.vision et les met en cache dans `./data`. Il calcule ensuite les signatures, l'ONC micro, l'ONC sur les rendements horaires, le test de transfert et la stabilité. Le parseur a été testé hors ligne sur les deux formats d'archives : spot en microsecondes sans en-tête, futures en millisecondes avec en-tête. **Il n'a pas été testé contre le vrai site**, faute d'accès réseau là où le code a été écrit.
-
-## Feuille de route suggérée
-
-1. **Semaine 1 : réalité.** Lancer `run_binance.py` sur 5 jours. Regarder `clusters.csv`. Les clusters ont-ils un sens ? Par exemple : stablecoins et paires à grand tick ensemble, memecoins ensemble, majors ensemble.
-2. **Semaine 2 : robustesse.** Refaire l'analyse sur 4 périodes disjointes pour tester H4. Enlever une feature à la fois pour voir lesquelles structurent les clusters. C'est l'esprit du MDA/MDI de *MLAM* ch. 6, appliqué au clustering.
-3. **Semaine 3 : une vraie stratégie à transférer.** Remplacer l'IC de l'EWMA des signes par une stratégie avec coûts, par exemple le market making d'Avellaneda-Stoikov (Cartea, ch. 10) ou une stratégie sur le déséquilibre du carnet. Mesurer la perte de transfert en P&L net de frais. C'est là que H3 se joue vraiment.
-4. **Semaine 4 : collecter le L2.** Faire tourner le collecteur quelques jours sur un VPS, puis ajouter `cancel_to_trade` et la profondeur au meilleur prix rapportée à la taille médiane des trades.
-
-## Extensions les plus originales
-
-- **Expériences naturelles de changement de tick.** Quand une plateforme change le tick d'une paire, l'actif devrait *migrer* de cluster. C'est une validation causale, pas seulement corrélationnelle (Bouchaud §4.8 discute des changements de tick).
-- **Même actif, plusieurs marchés.** BTC spot, BTC perpétuel et BTC sur une autre plateforme : si leurs signatures divergent, l'unité pertinente est le couple actif × plateforme, pas l'actif.
-- **Trajectoires de cluster.** Un actif qui change de cluster d'une semaine à l'autre révèle un changement de régime (nouveaux market makers, listing, hype), et c'est potentiellement un signal en soi.
-- **Transfert dans les deux sens.** La matrice de perte L(A→B) n'est pas symétrique. Les actifs « donneurs universels », dont la calibration marche partout, sont intéressants à identifier.
-
-## Garde-fous (López de Prado, *MLAM* ch. 8 et *Advances* ch. 11–14)
-
-- Consigner **chaque** configuration essayée (features, période, univers) dans un journal. Le nombre d'essais sert à dégonfler les résultats (Sharpe dégonflé).
-- Fixer les hypothèses et les seuils **avant** de lancer sur données réelles. Ce README le fait déjà.
-- Les signatures varient selon l'heure (saisonnalité intraday, Cartea ch. 4). Comparer les actifs sur les mêmes fenêtres horaires.
-- Sur la crypto, les frais et les rebates maker dépendent du niveau du compte : un transfert « rentable » brut peut ne pas l'être net de frais.
-
-## Limites connues du prototype
-
-- Le mid est approché à partir des trades seulement. Pour les paires à très grand tick, `impact1` peut devenir légèrement négatif, ce qui est un biais du proxy. Avec le carnet L2, il faudra utiliser le vrai mid.
-- Le Hawkes est univarié, à noyau exponentiel. Le vrai flux a un noyau en loi de puissance (Bouchaud ch. 9), donc `hawkes_n` sert de mesure comparative, pas de vraie valeur.
-- La stratégie témoin (IC de l'EWMA des signes) ne tient pas compte des coûts.
-- Le collecteur L2 est écrit mais n'a pas été testé contre le flux réel.
-
-## Structure
-
+The script downloads aggTrades for 30 pairs from data.binance.vision and caches them in `./data`. It then computes the signatures, micro ONC, ONC on hourly returns, the out-of-sample transfer test, a sample-size control and stability. A first real run (30 spot pairs, 1 day) worked end to end.
+Suggested roadmap
+Week 1: reality check. Run `run_binance.py` over 7 days. Look at `clusters.csv`. Do the clusters make sense? For example: stablecoins and large-tick pairs together, memecoins together, majors together.
+Week 2: robustness. Repeat over 4 disjoint periods to test H4. Drop one feature at a time to see which ones drive the clusters, in the spirit of MDA/MDI from MLAM ch. 6 applied to clustering.
+Week 3: a real strategy to transfer. Replace the sign-EWMA IC with a strategy that pays costs, e.g. Avellaneda-Stoikov market making (Cartea, ch. 10) or an order-book-imbalance strategy. Measure transfer loss as net P&L after fees. This is where H3 is really decided.
+Week 4: collect L2. Run the collector for a few days on a VPS, then add `cancel_to_trade` and best-level depth relative to median trade size.
+Most original extensions
+Tick-size changes as natural experiments. When an exchange changes a pair's tick, the asset should migrate between clusters. That is causal validation, not just correlation (Bouchaud §4.8 discusses tick changes).
+Same asset, several markets. BTC spot, BTC perpetual and BTC on another exchange: if their signatures diverge, the relevant unit is asset × venue, not the asset.
+Cluster trajectories. An asset that changes cluster from one week to the next reveals a regime change (new market makers, a listing, hype), which may be a signal in itself.
+Transfer is directional. The loss matrix L(A→B) is not symmetric. "Universal donor" assets, whose calibration works everywhere, are worth identifying.
+Safeguards (López de Prado, MLAM ch. 8 and Advances in Financial ML ch. 11–14)
+Log every configuration tried (features, period, universe). The number of trials is needed to deflate results (deflated Sharpe ratio).
+Fix hypotheses and thresholds before running on real data. This README already does.
+Signatures vary with time of day (intraday seasonality, Cartea ch. 4). Compare assets over the same hours.
+In crypto, fees and maker rebates depend on account tier: a transfer that is profitable gross may not be net of fees.
+Known limitations of the prototype
+The mid is approximated from trades only. For very large-tick pairs, `impact1` can turn slightly negative, which is a bias of the proxy. With L2 data, the true mid should be used.
+The Hawkes model is univariate with an exponential kernel. Real order flow has a power-law kernel (Bouchaud ch. 9), so `hawkes_n` is a comparative measure, not a true value.
+The test strategy (sign-EWMA IC) ignores costs.
+The L2 collector is written but untested against the live feed.
+Structure
 ```
 microclust/
-  simulate.py       marchés synthétiques à microstructure contrôlée
-  features.py       signature sans dimension (trades seuls)
-  book_features.py  taux d'annulation depuis le L2 (+ auto-test)
-  onc.py            ONC de MLAM ch. 4, porté en Python 3 et généralisé
-  transfer.py       perte de transfert, test de Mantel, stabilité
-  binance.py        téléchargement et parsing des archives publiques Binance
+  simulate.py       synthetic markets with controlled microstructure
+  features.py       dimensionless signature (trades only)
+  book_features.py  cancellation rate from L2 data (+ self-test)
+  onc.py            ONC from MLAM ch. 4, ported to Python 3 and generalized
+  transfer.py       transfer loss, Mantel test, stability
+  binance.py        download and parse Binance public archives
 scripts/
-  run_demo.py               démo synthétique + figure
-  run_binance.py            étude sur données réelles
-  collect_binance_depth.py  collecteur L2 temps réel
-results/                    sorties (CSV + figure)
+  run_demo.py               synthetic demo + figure
+  run_binance.py            real-data study
+  collect_binance_depth.py  live L2 collector
+results/                    outputs (CSV + figure)
 ```
-=======
-# python-microclust
-Research prototype: the measurement pipeline is validated on synthetic data, but the core hypothesis (H3) has not yet been tested on real markets.
->>>>>>> bbdce3e244e54e0388f261afde06aa7068ffcea5
+Code comments and console output are currently in French.
