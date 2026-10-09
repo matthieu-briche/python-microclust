@@ -123,3 +123,13 @@ results/                    outputs (CSV + figure)
 ```
 
 Code comments and console output are currently in French.
+
+---
+
+<p align="center">
+  <a href="https://github.com/matthieu-briche">
+    <img src="assets/logo.png" alt="Matthieu Briche" width="37">
+  </a>
+  <br>
+  <sub>Matthieu Briche · <a href="https://github.com/matthieu-briche">github.com/matthieu-briche</a></sub>
+</p>
